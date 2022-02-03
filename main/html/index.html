@@ -1,0 +1,628 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ConsoleCast</title>
+    <style>
+        body,html {
+            font-family: proxima-nova, arial, sans-serif;
+            font-style: normal;
+            font-weight: 100;
+            height: 100%;
+            background-color: lightblue;
+            min-width: 900px;
+        }
+
+        .title {
+            margin-bottom: 2px;
+        }
+
+        .subtitle {
+            margin-top: 2px;
+            color: darkslategray;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            padding-top: 100px;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgb(0,0,0);
+            background-color: rgba(0,0,0,0.4);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+        }
+
+        .box {
+            display: flex;
+            flex-flow: column;
+            height: 100%;
+        }
+
+        .box .row.header {
+            flex: 0 1 auto;
+        }
+
+        .box .row.content {
+            flex: 1 1 auto;
+            flex-direction: column;
+            text-align: center;
+            margin-right: 8px;
+        }
+
+        .box .row.footer {
+            flex: 0 1 80px;
+        }
+
+        .center {
+            text-align: center;
+        }
+
+        .center-element {
+            margin:auto
+        }
+
+        .border {
+            border-style: solid;
+        }
+
+        .border-s {
+            border-style: solid;
+            border-width: 2px;
+            padding: 6px;
+        }
+
+        .padding {
+            padding: 36px;
+        }
+
+        .button {
+            padding: 16px 32px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 10px 2px;
+            transition-duration: 0.4s;
+            cursor: pointer;
+            background-color: white;
+            color: black;
+            border: 2px solid #555555;
+        }
+
+        .button:hover {
+            background-color: #555555;
+            color: white;
+        }        
+
+        .radio {
+            display: inline;
+        }
+
+        .radioxx {
+            width: 2em;
+            height: 2em;
+        }
+
+        .numberxx {
+            width: 1.5em;
+            height: 1.5em;
+        }
+
+        .label-right{
+            text-align: right;
+        }
+
+        .input-align {
+            display:grid;
+            grid-template-columns: max-content max-content;
+            grid-gap:5px;
+            align-self: center;
+        }
+
+        .fontxx {
+            font-size: larger;
+        }
+
+        .padding10 {
+            padding: 10px;
+        }
+
+        .tooltip {
+            position: relative;
+            display: inline-block;
+            border-bottom: 1px dotted black;
+        }
+
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 300px;
+            background-color: black;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px 0;
+
+            /* Position the tooltip */
+            position: absolute;
+            z-index: 1;
+            top: -5px;
+            left: 105%;
+        }
+
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+        }
+
+        .linkup-container {
+            margin-left: 10px;
+            display: inline-block;
+            width: 35px;
+            height: 35px;
+            position: relative;
+        }
+
+        .linkup-loader {
+            margin-top: 15px;
+        }
+
+        .linkup-loader:before {
+            position: absolute;
+            content: '';
+            width: 100%;
+            height: 100%;
+            border-radius: 100%;
+            border-bottom: 0 solid #ffffff05;
+            
+            box-shadow: 
+                0 -10px 20px 20px #ffffff40 inset,
+                0 -5px 15px 10px #ffffff50 inset,
+                0 -2px 5px #ffffff80 inset,
+                0 -3px 2px #ffffffBB inset,
+                0 2px 0px #ffffff,
+                0 2px 3px #ffffff,
+                0 5px 5px #ffffff90,
+                0 10px 15px #ffffff60,
+                0 10px 20px 20px #ffffff40;
+            filter: blur(3px);
+            animation: 2s rotate linear infinite;
+        }
+
+        @keyframes rotate {
+            100% {
+                transform: rotate(360deg)
+            }
+        }        
+
+        .blinking{
+            animation:blinkingText 1.2s infinite;
+        }
+
+        @keyframes blinkingText{
+            0%{     color: #000;    }
+            49%{    color: #000; }
+            60%{    color: transparent; }
+            99%{    color:transparent;  }
+            100%{   color: #000;    }
+        }
+
+        .xterm {
+            height: 100%;
+            font-feature-settings: "liga" 0;
+            position: relative;
+            user-select: none;
+            -ms-user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .xterm.focus,
+        .xterm:focus {
+            outline: none;
+        }
+
+        .xterm .xterm-helpers {
+            position: absolute;
+            top: 0;
+            z-index: 5;
+        }
+
+        .xterm .xterm-helper-textarea {
+            padding: 0;
+            border: 0;
+            margin: 0;
+            position: absolute;
+            opacity: 0;
+            left: -9999em;
+            top: 0;
+            width: 0;
+            height: 0;
+            z-index: -5;
+            white-space: nowrap;
+            overflow: hidden;
+            resize: none;
+        }
+
+        .xterm .composition-view {
+            background: #000;
+            color: #FFF;
+            display: none;
+            position: absolute;
+            white-space: nowrap;
+            z-index: 1;
+        }
+
+        .xterm .composition-view.active {
+            display: block;
+        }
+
+        .xterm .xterm-viewport {
+            background-color: #000;
+            overflow-y: scroll;
+            cursor: default;
+            position: absolute;
+            right: 0;
+            left: 0;
+            top: 0;
+            bottom: 0;
+        }
+
+        .xterm .xterm-screen {
+            position: relative;
+        }
+
+        .xterm .xterm-screen canvas {
+            position: absolute;
+            left: 0;
+            top: 0;
+        }
+
+        .xterm .xterm-scroll-area {
+            visibility: hidden;
+        }
+
+        .xterm-char-measure-element {
+            display: inline-block;
+            visibility: hidden;
+            position: absolute;
+            top: 0;
+            left: -9999em;
+            line-height: normal;
+        }
+
+        .xterm {
+            cursor: text;
+        }
+
+        .xterm.enable-mouse-events {
+            cursor: default;
+        }
+
+        .xterm.xterm-cursor-pointer {
+            cursor: pointer;
+        }
+
+        .xterm.column-select.focus {
+            cursor: crosshair;
+        }
+
+        .xterm .xterm-accessibility,
+        .xterm .xterm-message {
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            right: 0;
+            z-index: 10;
+            color: transparent;
+        }
+
+        .xterm .live-region {
+            position: absolute;
+            left: -9999px;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+        }
+
+        .xterm-dim {
+            opacity: 0.5;
+        }
+
+        .xterm-underline {
+            text-decoration: underline;
+        }
+    </style>
+    <link rel="shortcut icon" type="image/x-icon" href="favicon.ico?v=2">
+    <script src="xterm.js"></script>
+</head>
+
+<body>
+
+<div class="box">
+    <div class="row header">
+        <H1 class="title">ConsoleCast</H1>
+        <H3 class="subtitle"><i>By NickStick Design</i></H3>
+    </div>
+    <div class="row content border padding" style="display: flex;" id="settings">
+        <h1 class="center">Settings</h1>
+        <br><br>
+        <h3 class="center">Choose Port</h3>
+        <div class="center fontxx">
+            <div class="radio">
+                <input class="radioxx" id="portRJ45" class="radio-choice" name="port-group" type="radio" checked onclick="fcVisible(1)">
+                <label for="portRJ45" class="radio-label">RJ45</label>
+            </div>
+            <div class="radio" style="margin-left: 500px;"></div>
+            <div class="radio">
+                <input class="radioxx" id="portUSB" class="radio-choice" name="port-group" type="radio" onclick="fcVisible(0)">
+                <label for="portUSB" class="radio-label">USB<span>&#9650;</span></label>
+            </div>
+        </div>
+        <div class="center">
+            <br><br>
+            <img width=800px src="cc.png" alt="PCB">
+        </div>
+        <br><br><br><br>
+        <div class="input-align border-s">
+            <label class="label-right" for="baudrate"><b>Baudrate:</b></label>
+            <input style="margin-left: 8px;" type="text" id="baudrate" value="9600">
+            <label class="label-right" for="db-group"><b>Data Bits:</b></label>
+            <div>
+            <input type="radio" id="db8" name="db-group" value="8" checked>
+            <label for="db8">8</label>
+            <input type="radio" id="db7" name="db-group" value="7">
+            <label for="db7">7</label>
+            <input type="radio" id="db6" name="db-group" value="6">
+            <label for="db6">6</label>
+            <input type="radio" id="db5" name="db-group" value="5">
+            <label for="db5">5</label>
+            </div>
+            <label class="label-right" for="p-group"><b>Parity:</b></label>
+            <div>
+            <input type="radio" id="pn" name="p-group" value="0" checked>
+            <label for="pn">None</label>
+            <input type="radio" id="pe" name="p-group" value="2">
+            <label for="pe">Even</label>
+            <input type="radio" id="po" name="p-group" value="3">
+            <label for="po">Odd</label>
+            </div>
+            <label class="label-right" for="sb-group"><b>Stop Bits:</b></label>
+            <div>
+            <input type="radio" id="sb1" name="sb-group" value="1" checked>
+            <label for="sb1">1</label>
+            <input type="radio" id="sb15" name="sb-group" value="2">
+            <label for="sb15">1.5</label>
+            <input type="radio" id="sb2" name="sb-group" value="3">
+            <label for="sb2">2</label>
+            </div>
+            <label class="label-right" for="fc-group" id=fclbl><b>Flow Control:</b></label>
+            <div id=fcflds>
+                <input type="radio" id="fcnone" name="fc-group" value="0" checked>
+                <label for="fcnone">None</label>
+                <input type="radio" id="fchw" name="fc-group" value="1">
+                <label for="fchw">HW</label>
+                <input type="radio" id="fcsw" name="fc-group" value="2">
+                <label for="fcsw">SW</label>
+            </div>
+        </div>
+        <br><br><br>
+        <u><b><p style="display: none;" onclick="switchAdvanced()" id="advancedHeading">Advanced </b></u><span id="toggleAdvanced">&#9660;</span></p>
+        <div class="input-align border-s" style="display: none;" id="advanced">
+            <div class="input-align border-s">
+                <input type="checkbox" id="connectOther" name="connectOther" onclick="SSIDVisible()" style="margin-top: 8px;">
+                <label class="tooltip" for="connectOther"><b>Connect to (other) network
+                    <svg width="22" height="22">
+                        <circle cx="11" cy="10" r="10" fill="#4444ff" />
+                        <text x="50%" y="50%" text-anchor="middle" fill="white" font-size="20px" font-family="Verdana" dy=".3em">?</text>
+                    ?
+                    </svg>
+                    <span class="tooltiptext">In stead of using ConsoleCast as a private Access Point, connect it to a network (other Access Point) and use it over this network. This is less secure as everyone with network access (also remote) can connect to ConsoleCast. You can limit the number of simultaneous sessions (Max. Parallel sessions).</span></b></label>
+                <label class="label-right" style="display: none;" for="SSID" id=SSIDlbl><b>SSID:</b></label>
+                <select style="margin-left: 8px; display: none;" name="SSID" id="SSID" onchange="SSIDVisible()">
+                </select>
+                <label class="label-right" style="display: none;" for="password" id="passwordlbl"><b>Password:</b></label>
+                <input style="margin-left: 8px; display: none;" type="password" id="password" value="">
+                <p id="connectButtonSpacer" style="display: none;"></p>
+                <button class="button" id="connectButton" style="margin-left: 8px; display: none;" onclick="connectWithAP()">Connect</button>
+            </div>
+            <br><br><br><br>
+            <div class="input-align">
+                <label class="label-right fontxx padding10" for="maxSessions"><b>Max. (Parallel) Sessions:</b></label>
+                <input class="numberxx fontxx" style="margin-left: 8px;" type="number" id="maxSessions" min="1" max="4" value="1">
+            </div>
+        </div>
+    </div>
+    <div class="row content" style="display: none" id="terminal"></div>
+    <div class="row footer">
+      <button class="button" style="display: none;" onclick="switchUI()" id="switchUI">Open Terminal</button>
+      <div id="waiting">
+        <div class="linkup-container">
+            <div class="linkup-loader"></div>
+        </div>
+        <div class="blinking" style="display: inline-block; margin-left: 10px; color: slategray;">Waiting for ConsoleCast, one moment please...</div>
+      </div>
+    </div>
+</div>
+
+<div id="mModal" class="modal">
+    <div class="modal-content">
+      <p>Page will reload to re-connect..</p>
+      <p>When ConsoleCast is back on-line you can also connect to it over choosen network / Access Point</p>
+    </div>
+</div>
+
+<script>
+    let socket;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log("starting WebSocket");
+        socket = new WebSocket('wss://cc.local/ws');
+        socket.onmessage = function(event) {
+            let incomingMessage = event.data;
+            if(incomingMessage.startsWith('§±')) {
+                let ssid = incomingMessage.substring(2);
+                addSSID(ssid.split(',')[1], ssid.split(',')[2]);
+                let currentRecord = parseInt(ssid.split(',')[0]);
+                if(currentRecord < 9) { // protocol works with one digit only so don't ask for >9
+                    sockSend('§±' + (currentRecord+1)); // get next
+                }
+            } else if(incomingMessage.startsWith('§!')) {
+                document.getElementById("waiting").style.display = "none";
+                document.getElementById("switchUI").style.display = "inline-block";
+                document.getElementById("advancedHeading").style.display = "inline-block";
+            } else {
+                term.write(incomingMessage);
+            }
+        };
+        socket.onclose = event => {
+            alert('No Connection to ConsoleCast, try to reload page...');
+        }
+    }, false);
+
+    const term = new Terminal();
+    term.setOption("fontSize", 25);
+    term.open(document.getElementById('terminal'));
+    term.write('\x1B[1;3;31m* ConsoleCast on-board terminal *\x1B[0m \r\n\n$ ')
+    term.onData(e => {
+        sockSend(e);
+    });
+
+    function sockSend(message) {
+        if (socket.readyState !== WebSocket.CLOSED && socket.readyState !== WebSocket.CLOSING) {
+            socket.send(message);
+        } else {
+            alert('No Connection to ConsoleCast, try to reload page...');
+        }
+    }
+
+    function connectWithAP() {
+        sockSend('§¨' + document.getElementById("SSID").value + ' , ' + document.getElementById("password").value); // switch to STA mode
+        document.getElementById("mModal").style.display = "block";
+        setTimeout(function(){ location.reload(); }, 5000);
+    }
+
+    function sendCommSettings() {
+        let commType = document.getElementById("portRJ45").checked ? 0 : 1; // 0 = uart
+        let db = "8";
+        let radios = document.getElementsByName('db-group');
+        for (let i = 0, length = radios.length; i < length; i++) {
+            if (radios[i].checked) {
+                db = radios[i].value;
+                break;
+            }
+        }        
+        let parity = "0";
+        radios = document.getElementsByName('p-group');
+        for (let i = 0, length = radios.length; i < length; i++) {
+            if (radios[i].checked) {
+                parity = radios[i].value;
+                break;
+            }
+        }
+        let sb = "1";
+        radios = document.getElementsByName('sb-group');
+        for (let i = 0, length = radios.length; i < length; i++) {
+            if (radios[i].checked) {
+                sb = radios[i].value;
+                break;
+            }
+        }
+        let fc = "0";
+        radios = document.getElementsByName('fc-group');
+        for (let i = 0, length = radios.length; i < length; i++) {
+            if (radios[i].checked) {
+                fc = radios[i].value;
+                break;
+            }
+        }
+        console.log("set comm pars", '§©' + document.getElementById("baudrate").value + ',' + db + ',' + parity + ',' + sb + ',' + fc + ',' + commType);
+        sockSend('§©' + document.getElementById("baudrate").value + ',' + db + ',' + parity + ',' + sb + ',' + fc + ',' + commType); // send comm settings
+    }
+
+    function switchUI() {
+        document.getElementById("settings").style.display = document.getElementById("settings").style.display === "flex" ? "none" : "flex";
+        document.getElementById("terminal").style.display = document.getElementById("terminal").style.display === "flex" ? "none" : "flex";
+        if(document.getElementById("switchUI").textContent === "Open Terminal") {
+            sendCommSettings();
+            document.getElementById("switchUI").textContent = "Back to Settings";
+            term.focus();
+            document.getElementById('terminal').focus;
+            // term.onData(e => {
+            // switch (e) {
+            //     default:
+            //         sockSend(e);
+            //     }
+            // });
+        } else {
+            document.getElementById("switchUI").textContent = "Open Terminal";
+        }
+    }
+
+    function switchAdvanced() {
+        if(document.getElementById("advanced").style.display === "grid") {
+            document.getElementById("advanced").style.display = "none";
+            document.getElementById("toggleAdvanced").textContent = "▼";
+        } else {
+            sockSend('§±0');
+            document.getElementById("advanced").style.display = "grid";
+            document.getElementById("toggleAdvanced").textContent = "▲";
+        }
+    }
+
+    function fcVisible(vis) {
+        vis ? document.getElementById("fclbl").style.display = "block" : document.getElementById("fclbl").style.display = "none";
+        vis ? document.getElementById("fcflds").style.display = "block" : document.getElementById("fcflds").style.display = "none";
+    }
+
+    function SSIDVisible() {
+        if(document.getElementById("connectOther").checked) {
+            document.getElementById("SSID").style.display = "block";
+            document.getElementById("SSIDlbl").style.display = "block";
+            document.getElementById("password").style.display = "block";
+            document.getElementById("passwordlbl").style.display = "block";
+            if(document.getElementById("SSID").value != "") {
+                document.getElementById("connectButtonSpacer").style.display = "block";
+                document.getElementById("connectButton").style.display = "block";
+            } else {
+                document.getElementById("connectButtonSpacer").style.display = "none";
+                document.getElementById("connectButton").style.display = "none";
+            }
+        } else {
+            document.getElementById("SSID").style.display = "none";
+            document.getElementById("SSIDlbl").style.display = "none";
+            document.getElementById("password").style.display = "none";
+            document.getElementById("passwordlbl").style.display = "none";
+            document.getElementById("connectButtonSpacer").style.display = "none";
+            document.getElementById("connectButton").style.display = "none";
+        }
+    }
+
+    function addSSID(ssid, strength) {
+        let select = document.getElementById("SSID");
+        var option = document.createElement("option");
+        option.text = ssid + ' (' + strength + ')';
+        option.value = ssid;
+        select.add(option);
+    }
+
+    function prompt(term) {
+        term.write('\r\n$ ');
+    }
+
+</script>
+
+</body>
+</html>
