@@ -353,7 +353,7 @@
 
 <div class="box">
     <div class="row header">
-        <H1 class="title">ConsoleCast</H1>
+        <H1 class="title">ConsoleCast 1.0</H1>
         <H3 class="subtitle"><i>By NickStick Design</i></H3>
     </div>
     <div class="row content border padding" style="display: flex;" id="settings">
@@ -429,7 +429,7 @@
                         <text x="50%" y="50%" text-anchor="middle" fill="white" font-size="20px" font-family="Verdana" dy=".3em">?</text>
                     ?
                     </svg>
-                    <span class="tooltiptext">In stead of using ConsoleCast as a private Access Point, connect it to a network (other Access Point) and use it over this network. This is less secure as everyone with network access (also remote) can connect to ConsoleCast. You can limit the number of simultaneous sessions (Max. Parallel sessions).</span></b></label>
+                    <span class="tooltiptext">In stead of using ConsoleCast as a private Access Point, connect it to a network (other Access Point) and use it over this network. This is less secure as everyone with network access (also remote) can connect to ConsoleCast. You can limit the number of simultaneous connections (Max. Parallel sessions).</span></b></label>
                 <label class="label-right" style="display: none;" for="SSID" id=SSIDlbl><b>SSID:</b></label>
                 <select style="margin-left: 8px; display: none;" name="SSID" id="SSID" onchange="SSIDVisible()">
                 </select>
@@ -476,10 +476,10 @@
                 let ssid = incomingMessage.substring(2);
                 addSSID(ssid.split(',')[1], ssid.split(',')[2]);
                 let currentRecord = parseInt(ssid.split(',')[0]);
-                if(currentRecord < 9) { // protocol works with one digit only so don't ask for >9
-                    sockSend('§±' + (currentRecord+1)); // get next
+                if(currentRecord < 9) {                             // protocol works with one digit only so don't ask for >9
+                    sockSend('§±' + (currentRecord+1));             // get next
                 }
-            } else if(incomingMessage.startsWith('§!')) {
+            } else if(incomingMessage.startsWith('§!')) {           // link is up
                 document.getElementById("waiting").style.display = "none";
                 document.getElementById("switchUI").style.display = "inline-block";
                 document.getElementById("advancedHeading").style.display = "inline-block";
@@ -560,12 +560,6 @@
             document.getElementById("switchUI").textContent = "Back to Settings";
             term.focus();
             document.getElementById('terminal').focus;
-            // term.onData(e => {
-            // switch (e) {
-            //     default:
-            //         sockSend(e);
-            //     }
-            // });
         } else {
             document.getElementById("switchUI").textContent = "Open Terminal";
         }
