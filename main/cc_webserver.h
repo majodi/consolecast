@@ -14,7 +14,7 @@
 extern "C" {
 #endif
 
-static const size_t max_clients = 13; // ook nog goed bekijken!!!
+static const size_t max_clients = 13;
 
 /**
  * @brief Start webserver

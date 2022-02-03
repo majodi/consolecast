@@ -18,6 +18,7 @@
 #include "esp_wifi.h"
 #include "esp_wifi_default.h"
 
+// default settings
 #define AP_WIFI_SSID  "ConsoleCast_AP"
 #define AP_WIFI_PASS  "castaway"
 #define AP_WIFI_CHNL  11
