@@ -1,7 +1,7 @@
 ConsoleCast example firmware
 =======================
 
-** under construction **
+**  under construction  **
 
 This repo contains open source example code and schematics for ConsoleCast, the Universal Serial to WIFI bridge development board.
 
