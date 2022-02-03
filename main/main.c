@@ -40,11 +40,13 @@ static QueueHandle_t uart1_queue;
 #define IO_RTS (6)
 #define IO_CTS (7)
 
+// indicator mode (flashing the LED's)
 #define IND_OFF (0)
 #define IND_ON  (1)
 #define IND_WORKING (2)
 #define IND_ERROR   (3)
 
+// default UART settings
 #define UART_PORT_NUM   (1)
 #define UART_BAUD_RATE  (9600)
 #define TASK_STACK_SIZE (2048)
@@ -54,9 +56,10 @@ static QueueHandle_t uart1_queue;
 // reverse VBUS pin (to signal host mode power path should be used)
 #define VBUS_R GPIO_NUM_8
 
-// code assumes only 1 digit (0-9) --> max setting here for scan list size 10
+// code assumes only 1 digit (0-9) --> max setting here for scan list size is 10
 #define DEFAULT_SCAN_LIST_SIZE (10)
 
+// argument structure
 struct async_resp_arg {
     httpd_handle_t hd;
     int fd;
@@ -65,21 +68,21 @@ struct async_resp_arg {
 };
 
 // global
-static const char *TAG = "** ccfw **";
-static int indicator_mode = IND_OFF;
-static bool switchSTA = false;
-static bool isSTA = false;
-wifi_ap_record_t ap_info[DEFAULT_SCAN_LIST_SIZE];
-static uint16_t ap_count = 0;
-char connectToSSID[32];
-char connectToPass[64];
-bool useCDC = false;
-httpd_handle_t globserver = NULL;
-char _baudrate[10];
+static const char *TAG = "** ccfw **";                  // tag for logging to console
+static int indicator_mode = IND_OFF;                    // current indicator mode
+static bool switchSTA = false;                          // should switch to Station mode (set to True will attempt to connect to an Access Point)
+static bool isSTA = false;                              // did we switch to Station mode
+wifi_ap_record_t ap_info[DEFAULT_SCAN_LIST_SIZE];       // to hold the scanned AP's
+static uint16_t ap_count = 0;                           // AP's found after scan
+char connectToSSID[32];                                 // SSID to connect to in Station mode
+char connectToPass[64];                                 // PW
+bool useCDC = false;                                    // use USB port (default is Serial port)
+httpd_handle_t globserver = NULL;                       // server handle
+char _baudrate[10];                                     // Serial settings
 char _db[2];
 char _parity[2];
 char _sb[2];
-char VID[15];
+char VID[15];                                           // VID/PID of USB
 char PID[15];
 
 // CDC
@@ -92,7 +95,7 @@ static bool ready = false;
 static void switch_to_sta(httpd_handle_t server);                                           // forward ref, needed for dependency early on
 static esp_err_t send_pkt_to_all(httpd_handle_t handle, uint8_t *message, size_t len);
 
-//===================== CDC =========================
+//===================== CDC (USB port usage) =========================
 
 void parse_cfg_descriptor(uint8_t* data_buffer, usb_transfer_status_t status, uint8_t len, uint8_t* conf_num);
 
@@ -256,7 +259,7 @@ void usbh_port_sudden_disconn_cb(port_event_msg_t msg)
 
 extern void cdc_pipe_event_task(void* p);
 
-//===================================================
+//===================== Websocket and webserver =============================
 
 static void send_pkt_async(void *arg)
 {
@@ -314,7 +317,8 @@ static esp_err_t send_pkt_to_all(httpd_handle_t handle, uint8_t *message, size_t
     return ESP_OK;
 }
 
-/* HTTP GET handlers */
+//===================== HTTP GET handlers (served files are embedded in the firmware) =====================
+
 static esp_err_t root_get_handler(httpd_req_t *req)
 {
     httpd_resp_set_type(req, "text/html");
@@ -375,12 +379,13 @@ static const httpd_uri_t xterm = {
     .handler   = xterm_get_handler
 };
 
+// Websocket handler
 static esp_err_t ws_handler(httpd_req_t *req)
 {
     char message[50];
     if (req->method == HTTP_GET) {
         ESP_LOGI(TAG, "Handshake done, new connection");
-        snprintf(message, 50, "§!"); // link is up message
+        snprintf(message, 50, "§!"); // send link is up message
         send_pkt_to_fd(req->handle, httpd_req_to_sockfd(req), (uint8_t *)message, strlen((char *)message));
         return ESP_OK;
     }
@@ -423,7 +428,7 @@ static esp_err_t ws_handler(httpd_req_t *req)
             send_pkt_to_all(req->handle, ws_pkt.payload, ws_pkt.len);
         }
         if((ws_pkt.len > 4) && strncmp((char *)ws_pkt.payload, "§±", 4) == 0) {                                         // "get SSID list" request (pkt.len = bytes incl \0, compare uses characters and unicode chars are 2 bytes)
-            if((*(ws_pkt.payload+4)-48 < ap_count) && (*(ws_pkt.payload+4)-48 < DEFAULT_SCAN_LIST_SIZE)) {              // next byte (only one digit!!) should be the index the request wants (ascii 48 = 0)
+            if((*(ws_pkt.payload+4)-48 < ap_count) && (*(ws_pkt.payload+4)-48 < DEFAULT_SCAN_LIST_SIZE)) {              // next byte (only one digit) should be the index the request wants (ascii 48 = 0)
                 snprintf(message, 50, "§±%d,%s,%d", *(ws_pkt.payload+4)-48, ap_info[*(ws_pkt.payload+4)-48].ssid, ap_info[*(ws_pkt.payload+4)-48].rssi);
                 send_pkt_to_fd(req->handle, httpd_req_to_sockfd(req), (uint8_t *)message, strlen((char *)message));
             }
@@ -525,6 +530,7 @@ static void switch_to_sta(void* server) {
     ESP_LOGI(TAG, "----> end switch to STA");
 }
 
+// LED's can be used only when UART communication is inactive (the RX/TX LEDs are used)
 static void led_indicator_task(void *arg)
 {
     gpio_reset_pin(IO_RXD);
@@ -578,6 +584,8 @@ static void led_indicator_task(void *arg)
         vTaskDelay(period / portTICK_PERIOD_MS);
     }
 }
+
+//===================== UART event task (Serial port usage) =========================
 
 static void uart_event_task(void *pvParameters)
 {
@@ -640,6 +648,8 @@ static void uart_event_task(void *pvParameters)
     dtmp = NULL;
     vTaskDelete(NULL);
 }
+
+//===================== CDC task (USB port usage) =========================
 
 static void cdc_listen_task(void *pvParameters)
 {
@@ -737,19 +747,20 @@ void app_main(void)
     gpio_config(&io_conf);
     gpio_set_level(VBUS_R, 0);  // default: VBUS power incoming
 
-    while(1) { // check for station-mode request
+    while(1) { // check for station-mode request now and then
         vTaskDelay(1500 / portTICK_PERIOD_MS);
-
-    size_t clients = max_clients;
-    int    client_fds[max_clients];
-    if (httpd_get_client_list(globserver, &clients, client_fds) == ESP_OK) {
-        printf("clients: %d\n", clients);
-    }
-
         if(switchSTA && !isSTA) {
             isSTA = true;
             switch_to_sta(&server);
         }
+
+    // ** debug **
+    // size_t clients = max_clients;
+    // int    client_fds[max_clients];
+    // if (httpd_get_client_list(globserver, &clients, client_fds) == ESP_OK) {
+    //     printf("clients: %d\n", clients);
+    // }
+
     }
 
 }
