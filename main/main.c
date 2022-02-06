@@ -460,6 +460,7 @@ static esp_err_t ws_handler(httpd_req_t *req)
                 }
                 snprintf(message, 50, "RJ45 RS232\r\n"); // send info
                 send_pkt_to_all(globserver, (uint8_t *)message, strlen((char *)message));
+                ESP_ERROR_CHECK(uart_set_pin(UART_PORT_NUM, IO_TXD, IO_RXD, IO_RTS, IO_CTS));
             } else {
                 useCDC = true;
                 // turn on vbus power out (electronic switch to reverse power)
@@ -719,7 +720,7 @@ void app_main(void)
 
     ESP_ERROR_CHECK(uart_driver_install(UART_PORT_NUM, UART_BUF_SIZE * 2, 0, 20, &uart1_queue, intr_alloc_flags));
     ESP_ERROR_CHECK(uart_param_config(UART_PORT_NUM, &uart_config));
-    ESP_ERROR_CHECK(uart_set_pin(UART_PORT_NUM, IO_TXD, IO_RXD, IO_RTS, IO_CTS));
+    // ESP_ERROR_CHECK(uart_set_pin(UART_PORT_NUM, IO_TXD, IO_RXD, IO_RTS, IO_CTS));
 
     xTaskCreate(uart_event_task, "uart_event_task", 2048, NULL, 12, NULL);
 
@@ -754,12 +755,12 @@ void app_main(void)
             switch_to_sta(&server);
         }
 
-    // ** debug **
-    // size_t clients = max_clients;
-    // int    client_fds[max_clients];
-    // if (httpd_get_client_list(globserver, &clients, client_fds) == ESP_OK) {
-    //     printf("clients: %d\n", clients);
-    // }
+        // ** debug **
+        // size_t clients = max_clients;
+        // int    client_fds[max_clients];
+        // if (httpd_get_client_list(globserver, &clients, client_fds) == ESP_OK) {
+        //     printf("clients: %d\n", clients);
+        // }
 
     }
 

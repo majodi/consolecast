@@ -6,6 +6,8 @@
 #include "cdc_class.h"
 #include "hcd.h"
 
+#include "comm_settings.h"
+
 
 #define MAX_NUM_ENDP    3
 #define EP1             0
@@ -22,11 +24,6 @@ extern hcd_pipe_handle_t ctrl_pipe_hdl;
 
 static QueueHandle_t cdc_pipe_evt_queue;
 static ctrl_pipe_cb_t cdc_pipe_cb;
-
-extern char _baudrate[10];
-extern char _db[2];
-extern char _parity[2];
-extern char _sb[2];
 
 
 static bool cdc_pipe_callback(hcd_pipe_handle_t pipe_hdl, hcd_pipe_event_t pipe_event, void *user_arg, bool in_isr)
@@ -258,12 +255,13 @@ void cdc_class_specific_ctrl_cb(usb_irp_t* irp)
                             data->dwDTERate, data->bCharFormat, data->bParityType, data->bDataBits);        
     } else if (irp->data_buffer[0] == SET_VALUE && irp->data_buffer[1] == SET_CONTROL_LINE_STATE) // set line coding
     {
-        line_coding_t* data = (line_coding_t*)(irp->data_buffer + sizeof(usb_ctrl_req_t));
+        // line_coding_t* data = (line_coding_t*)(irp->data_buffer + sizeof(usb_ctrl_req_t));
         ESP_LOGI("===> Set control line state", "");
-        // xfer_set_line_coding(9600, 0, 0, 8);
         int adjParity = atoi(_parity);
         adjParity = adjParity == 3 ? 1 : adjParity;
-        xfer_set_line_coding(atoi(_baudrate), atoi(_sb-1), adjParity, atoi(_db));
+        // printf("baud: %d, sb: %d, parity: %d, db: %d\n", atoi(_baudrate), atoi(_sb)-1, adjParity, atoi(_db));
+        xfer_set_line_coding(atoi(_baudrate), atoi(_sb)-1, adjParity, atoi(_db));
+
         vTaskDelay(20);
     }
 }

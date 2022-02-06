@@ -171,11 +171,9 @@ esp_err_t cc_connectToAP(char *ssid, char *pass) {
     /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually
      * happened. */
     if (bits & WIFI_CONNECTED_BIT) {
-        ESP_LOGI(TAG, "connected to ap SSID:%s password:%s",
-                 STA_WIFI_SSID, STA_WIFI_PASS);
+        ESP_LOGI(TAG, "connected to ap SSID:%s password:%s", ssid, pass);
     } else if (bits & WIFI_FAIL_BIT) {
-        ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s",
-                 STA_WIFI_SSID, STA_WIFI_PASS);
+        ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s", ssid, pass);
     } else {
         ESP_LOGE(TAG, "UNEXPECTED EVENT");
     }

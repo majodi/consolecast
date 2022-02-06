@@ -27,7 +27,7 @@ bool client_not_alive_cb(wss_keep_alive_t h, int fd)
 {
     ESP_LOGE(TAG, "Client not alive, closing fd %d", fd);
     httpd_sess_trigger_close(wss_keep_alive_get_user_ctx(h), fd);
-
+    wss_close_fd(wss_keep_alive_get_user_ctx(h), fd);
     return true;
 }
 
