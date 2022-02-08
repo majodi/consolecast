@@ -255,13 +255,10 @@ void cdc_class_specific_ctrl_cb(usb_irp_t* irp)
                             data->dwDTERate, data->bCharFormat, data->bParityType, data->bDataBits);        
     } else if (irp->data_buffer[0] == SET_VALUE && irp->data_buffer[1] == SET_CONTROL_LINE_STATE) // set line coding
     {
-        // line_coding_t* data = (line_coding_t*)(irp->data_buffer + sizeof(usb_ctrl_req_t));
         ESP_LOGI("===> Set control line state", "");
         int adjParity = atoi(_parity);
         adjParity = adjParity == 3 ? 1 : adjParity;
-        // printf("baud: %d, sb: %d, parity: %d, db: %d\n", atoi(_baudrate), atoi(_sb)-1, adjParity, atoi(_db));
         xfer_set_line_coding(atoi(_baudrate), atoi(_sb)-1, adjParity, atoi(_db));
-
         vTaskDelay(20);
     }
 }

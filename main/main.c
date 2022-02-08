@@ -31,33 +31,9 @@
 #include "ctrl_pipe.h"
 #include "usb_host_port.h"
 #include "cdc_class.h"
+#include "defines.h"
 
 static QueueHandle_t uart1_queue;
-
-// UART pins
-#define IO_TXD (4)
-#define IO_RXD (5)
-#define IO_RTS (6)
-#define IO_CTS (7)
-
-// indicator mode (flashing the LED's)
-#define IND_OFF (0)
-#define IND_ON  (1)
-#define IND_WORKING (2)
-#define IND_ERROR   (3)
-
-// default UART settings
-#define UART_PORT_NUM   (1)
-#define UART_BAUD_RATE  (9600)
-#define TASK_STACK_SIZE (2048)
-#define UART_BUF_SIZE   (512)
-#define ECHO (0)
-
-// reverse VBUS pin (to signal host mode power path should be used)
-#define VBUS_R GPIO_NUM_8
-
-// code assumes only 1 digit (0-9) --> max setting here for scan list size is 10
-#define DEFAULT_SCAN_LIST_SIZE (10)
 
 // argument structure
 struct async_resp_arg {
@@ -77,6 +53,8 @@ static uint16_t ap_count = 0;                           // AP's found after scan
 char connectToSSID[32];                                 // SSID to connect to in Station mode
 char connectToPass[64];                                 // PW
 bool useCDC = false;                                    // use USB port (default is Serial port)
+bool CDCisConnected = false;                            // is there a physical connection (can we send to CDC)
+bool commConnected = false;                             // communication channel is connected
 httpd_handle_t globserver = NULL;                       // server handle
 char _baudrate[10];                                     // Serial settings
 char _db[2];
@@ -112,8 +90,9 @@ void usbh_ctrl_pipe_class_specific_cb(pipe_event_msg_t msg, usb_irp_t *irp)
 {
     cdc_class_specific_ctrl_cb(irp);
 
-    if (irp->data_buffer[0] == SET_VALUE && irp->data_buffer[1] == SET_CONTROL_LINE_STATE) {    // set line coding
+    if (irp->data_buffer[0] == SET_VALUE && irp->data_buffer[1] == SET_CONTROL_LINE_STATE) {    // with this we know there is a connection
         char message[50];
+        CDCisConnected = true;
         snprintf(message, 50, "USB CDC %s,%s (VID/PID)\r\n", VID, PID); // send info
         send_pkt_to_all(globserver, (uint8_t *)message, strlen((char *)message));
     }
@@ -251,6 +230,7 @@ void usbh_port_sudden_disconn_cb(port_event_msg_t msg)
         if(ESP_OK == hcd_port_command(msg.port_hdl, HCD_PORT_CMD_POWER_ON)) ESP_LOGI("", "Port powered ON");
 
         useCDC = false;
+        CDCisConnected = false;
         // turn off vbus power out (electronic switch to reverse power)
         gpio_set_level(VBUS_R, 0);        
 
@@ -385,7 +365,22 @@ static esp_err_t ws_handler(httpd_req_t *req)
     char message[50];
     if (req->method == HTTP_GET) {
         ESP_LOGI(TAG, "Handshake done, new connection");
-        snprintf(message, 50, "§!"); // send link is up message
+        gpio_set_level(IO_TXD, 1);
+        gpio_set_level(IO_RXD, 1);
+        vTaskDelay(600 / portTICK_PERIOD_MS);
+        gpio_set_level(IO_TXD, 0);
+        gpio_set_level(IO_RXD, 0);
+
+        if (commConnected) {
+            if (useCDC) {
+                snprintf(message, 50, "§!1"); // send link is up message (CDC)
+            } else {
+                snprintf(message, 50, "§!0"); // send link is up message (RS232)
+            }
+        } else {
+            snprintf(message, 50, "§!N"); // send link is up message (None)
+        }
+        // snprintf(message, 50, "§!"); // send link is up message
         send_pkt_to_fd(req->handle, httpd_req_to_sockfd(req), (uint8_t *)message, strlen((char *)message));
         return ESP_OK;
     }
@@ -437,38 +432,49 @@ static esp_err_t ws_handler(httpd_req_t *req)
             sscanf((char *)ws_pkt.payload, "§¨%s , %s", connectToSSID, connectToPass);
             switchSTA = true;
         }
-        else if((ws_pkt.len > 4) && strncmp((char *)ws_pkt.payload, "§©", 4) == 0) {                                    // comm settings
-            char _fc[2];
-            char _commType[2];
-            sscanf((char *)ws_pkt.payload, "§©%[^,],%[^,],%[^,],%[^,],%[^,],%[^,]", _baudrate, _db, _parity, _sb, _fc, _commType);
-            ESP_LOGI(TAG, "Baudrate: %s (%d), Databits: %s, Parity: %s, sb: %s, fc: %s", _baudrate, atoi(_baudrate), _db, _parity, _sb, _fc);
-            if(strncmp(_commType, "0", 1) == 0) {       // 0 = uart
-                useCDC = false;
-                gpio_set_level(VBUS_R, 0);
-                ESP_ERROR_CHECK(uart_set_baudrate(UART_PORT_NUM, atoi(_baudrate)));
-                ESP_ERROR_CHECK(uart_set_word_length(UART_PORT_NUM, atoi(_db)-5));
-                ESP_ERROR_CHECK(uart_set_parity(UART_PORT_NUM, atoi(_parity)));
-                ESP_ERROR_CHECK(uart_set_stop_bits(UART_PORT_NUM, atoi(_sb)));
-                if(strncmp(_fc, "1", 1) == 0) {
-                    ESP_ERROR_CHECK(uart_set_hw_flow_ctrl(UART_PORT_NUM, UART_HW_FLOWCTRL_CTS_RTS, 120));
-                }
-                else if(strncmp(_fc, "2", 1) == 0) {
-                    ESP_ERROR_CHECK(uart_set_sw_flow_ctrl(UART_PORT_NUM, true, 8, 120));
+        else if((ws_pkt.len > 4) && (strncmp((char *)ws_pkt.payload, "§©", 4) == 0)) {                                  // comm settings
+            if (commConnected == false) {
+                char _fc[2];
+                char _commType[2];
+                sscanf((char *)ws_pkt.payload, "§©%[^,],%[^,],%[^,],%[^,],%[^,],%[^,]", _baudrate, _db, _parity, _sb, _fc, _commType);
+                ESP_LOGI(TAG, "Baudrate: %s (%d), Databits: %s, Parity: %s, sb: %s, fc: %s", _baudrate, atoi(_baudrate), _db, _parity, _sb, _fc);
+                if(strncmp(_commType, "0", 1) == 0) {       // 0 = uart
+                    useCDC = false;
+                    gpio_set_level(VBUS_R, 0);
+                    ESP_ERROR_CHECK(uart_set_baudrate(UART_PORT_NUM, atoi(_baudrate)));
+                    ESP_ERROR_CHECK(uart_set_word_length(UART_PORT_NUM, atoi(_db)-5));
+                    ESP_ERROR_CHECK(uart_set_parity(UART_PORT_NUM, atoi(_parity)));
+                    ESP_ERROR_CHECK(uart_set_stop_bits(UART_PORT_NUM, atoi(_sb)));
+                    if(strncmp(_fc, "1", 1) == 0) {
+                        ESP_ERROR_CHECK(uart_set_hw_flow_ctrl(UART_PORT_NUM, UART_HW_FLOWCTRL_CTS_RTS, 120));
+                    }
+                    else if(strncmp(_fc, "2", 1) == 0) {
+                        ESP_ERROR_CHECK(uart_set_sw_flow_ctrl(UART_PORT_NUM, true, 8, 120));
+                    } else {
+                        ESP_ERROR_CHECK(uart_set_sw_flow_ctrl(UART_PORT_NUM, false, 8, 120));
+                        ESP_ERROR_CHECK(uart_set_hw_flow_ctrl(UART_PORT_NUM, UART_HW_FLOWCTRL_DISABLE, 120));
+                    }
+                    snprintf(message, 50, "RJ45 RS232\r\n"); // send info
+                    send_pkt_to_all(globserver, (uint8_t *)message, strlen((char *)message));
+                    ESP_ERROR_CHECK(uart_set_pin(UART_PORT_NUM, IO_TXD, IO_RXD, IO_RTS, IO_CTS));
+
+                    snprintf(message, 50, "§®0");
+                    send_pkt_to_all(globserver, (uint8_t *)message, strlen((char *)message));
+
                 } else {
-                    ESP_ERROR_CHECK(uart_set_sw_flow_ctrl(UART_PORT_NUM, false, 8, 120));
-                    ESP_ERROR_CHECK(uart_set_hw_flow_ctrl(UART_PORT_NUM, UART_HW_FLOWCTRL_DISABLE, 120));
+                    useCDC = true;
+                    // turn on vbus power out (electronic switch to reverse power)
+                    gpio_set_level(VBUS_R, 1);
+
+                    snprintf(message, 50, "§®1");
+                    send_pkt_to_all(globserver, (uint8_t *)message, strlen((char *)message));
+
                 }
-                snprintf(message, 50, "RJ45 RS232\r\n"); // send info
-                send_pkt_to_all(globserver, (uint8_t *)message, strlen((char *)message));
-                ESP_ERROR_CHECK(uart_set_pin(UART_PORT_NUM, IO_TXD, IO_RXD, IO_RTS, IO_CTS));
-            } else {
-                useCDC = true;
-                // turn on vbus power out (electronic switch to reverse power)
-                gpio_set_level(VBUS_R, 1);
+                commConnected = true;
             }
         }
         else {
-            if (useCDC) {
+            if (useCDC && CDCisConnected) {
                 // to CDC
                 xfer_out_data(ws_pkt.payload, ws_pkt.len);
             } else {
@@ -520,6 +526,7 @@ static void connect_handler(void* arg, esp_event_base_t event_base,
 
 // static void switch_to_sta(httpd_handle_t server) {
 static void switch_to_sta(void* server) {
+    indicator_mode = IND_WORKING;
     ESP_LOGI(TAG, "----> switch to STA");
     ESP_ERROR_CHECK(esp_wifi_stop());
 
@@ -722,11 +729,11 @@ void app_main(void)
     ESP_ERROR_CHECK(uart_param_config(UART_PORT_NUM, &uart_config));
     // ESP_ERROR_CHECK(uart_set_pin(UART_PORT_NUM, IO_TXD, IO_RXD, IO_RTS, IO_CTS));
 
-    xTaskCreate(uart_event_task, "uart_event_task", 2048, NULL, 12, NULL);
+    xTaskCreate(uart_event_task, "uart_event_task", 2048, NULL, 5, NULL);
 
-    xTaskCreate(ctrl_pipe_event_task, "pipe_task", 4*1024, NULL, 10, NULL);
-    xTaskCreate(cdc_pipe_event_task, "pipe_task", 4*1024, NULL, 10, NULL);
-    xTaskCreate(cdc_listen_task, "pipe_task", 4*1024, NULL, 10, NULL);
+    xTaskCreate(ctrl_pipe_event_task, "pipe_task", 4*1024, NULL, 5, NULL);
+    xTaskCreate(cdc_pipe_event_task, "pipe_task", 4*1024, NULL, 5, NULL);
+    xTaskCreate(cdc_listen_task, "pipe_task", 4*1024, NULL, 5, NULL);
 
     printf("USB host initialized\n");
     if(setup_usb_host()){
@@ -754,14 +761,6 @@ void app_main(void)
             isSTA = true;
             switch_to_sta(&server);
         }
-
-        // ** debug **
-        // size_t clients = max_clients;
-        // int    client_fds[max_clients];
-        // if (httpd_get_client_list(globserver, &clients, client_fds) == ESP_OK) {
-        //     printf("clients: %d\n", clients);
-        // }
-
     }
 
 }

@@ -7,10 +7,13 @@
    CONDITIONS OF ANY KIND, either express or implied.
  */
 
+#include "driver/gpio.h"
 #include "esp_log.h"
 #include "esp_https_server.h"
 #include "keep_alive.h"
 #include "cc_webserver.h"
+
+#include "defines.h"
 
 #if !CONFIG_HTTPD_WS_SUPPORT
 #error This code cannot be used unless HTTPD_WS_SUPPORT is enabled in esp-http-server component configuration
@@ -61,6 +64,11 @@ bool check_client_alive_cb(wss_keep_alive_t h, int fd)
 
 esp_err_t wss_open_fd(httpd_handle_t hd, int sockfd)
 {
+    gpio_set_level(IO_TXD, 1);
+    gpio_set_level(IO_RXD, 1);
+    vTaskDelay(300 / portTICK_PERIOD_MS);
+    gpio_set_level(IO_TXD, 0);
+    gpio_set_level(IO_RXD, 0);
     ESP_LOGI(TAG, "New client connected %d", sockfd);
     wss_keep_alive_t h = httpd_get_global_user_ctx(hd);
     return wss_keep_alive_add_client(h, sockfd);

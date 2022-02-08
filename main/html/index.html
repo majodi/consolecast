@@ -425,7 +425,7 @@
             </div>
         </div>
         <br><br><br>
-        <u><b><p style="display: none;" onclick="switchAdvanced()" id="advancedHeading">Advanced </b></u><span id="toggleAdvanced">&#9660;</span></p>
+        <u><b><p style="display: none; cursor: pointer;" onclick="switchAdvanced()" id="advancedHeading">Advanced </b></u><span id="toggleAdvanced">&#9660;</span></p>
         <div class="input-align border-s" style="display: none;" id="advanced">
             <div class="input-align border-s">
                 <input type="checkbox" id="connectOther" name="connectOther" onclick="SSIDVisible()" style="margin-top: 8px;">
@@ -465,8 +465,10 @@
 
 <div id="mModal" class="modal">
     <div class="modal-content">
-      <p>Page will reload to re-connect..</p>
-      <p>When ConsoleCast is back on-line you can also connect to it over choosen network / Access Point</p>
+        <h4>ConsoleCast is trying to connect to the specified network</h4>
+        <p>When ConsoleCast is back on-line you can:</p>
+        <p>- reload this page to re-connect using the standard ConsoleCast Access Point or</p>
+        <p>- first switch to the specified network and reload this page</p>
     </div>
 </div>
 
@@ -478,17 +480,36 @@
         socket = new WebSocket('wss://cc.local/ws');
         socket.onmessage = function(event) {
             let incomingMessage = event.data;
-            if(incomingMessage.startsWith('§±')) {
+            if(incomingMessage.startsWith('§±')) {                  // scan list entry
                 let ssid = incomingMessage.substring(2);
                 addSSID(ssid.split(',')[1], ssid.split(',')[2]);
                 let currentRecord = parseInt(ssid.split(',')[0]);
                 if(currentRecord < 9) {                             // protocol works with one digit only so don't ask for >9
                     sockSend('§±' + (currentRecord+1));             // get next
                 }
-            } else if(incomingMessage.startsWith('§!')) {           // link is up
+            } else if(incomingMessage.startsWith('§!')) {           // link is up (maybe also get an already set comm type)
                 document.getElementById("waiting").style.display = "none";
                 document.getElementById("switchUI").style.display = "inline-block";
                 document.getElementById("advancedHeading").style.display = "inline-block";
+                if (incomingMessage.charAt(2) != 'N') {
+                    if (incomingMessage.charAt(2) === '0') {
+                        document.getElementById("portRJ45").checked = true;
+                        document.getElementById("portRJ45").disabled = true;
+                    }
+                    if (incomingMessage.charAt(2) === '1') {
+                        document.getElementById("portUSB").checked = true;
+                        document.getElementById("portUSB").disabled = true;
+                    }
+                }
+            } else if(incomingMessage.startsWith('§®')) {           // get comm type choosen by other station
+                if (incomingMessage.charAt(2) === '0') {
+                    document.getElementById("portRJ45").checked = true;
+                    document.getElementById("portRJ45").disabled = true;
+                }
+                if (incomingMessage.charAt(2) === '1') {
+                    document.getElementById("portUSB").checked = true;
+                    document.getElementById("portUSB").disabled = true;
+                }
             } else {
                 term.write(incomingMessage);
             }
@@ -517,7 +538,7 @@
     function connectWithAP() {
         sockSend('§¨' + document.getElementById("SSID").value + ' , ' + document.getElementById("password").value); // switch to STA mode
         document.getElementById("mModal").style.display = "block";
-        setTimeout(function(){ location.reload(); }, 5000);
+        // setTimeout(function(){ location.reload(); }, 5000);
     }
 
     function sendCommSettings() {

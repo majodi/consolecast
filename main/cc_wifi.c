@@ -18,6 +18,10 @@
 #include "esp_wifi.h"
 #include "esp_wifi_default.h"
 
+#include "comm_settings.h"
+#include "defines.h"
+
+
 // default settings
 #define AP_WIFI_SSID  "ConsoleCast_AP"
 #define AP_WIFI_PASS  "castaway"
@@ -172,10 +176,13 @@ esp_err_t cc_connectToAP(char *ssid, char *pass) {
      * happened. */
     if (bits & WIFI_CONNECTED_BIT) {
         ESP_LOGI(TAG, "connected to ap SSID:%s password:%s", ssid, pass);
+        indicator_mode = IND_OFF;
     } else if (bits & WIFI_FAIL_BIT) {
         ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s", ssid, pass);
+        indicator_mode = IND_ERROR;
     } else {
         ESP_LOGE(TAG, "UNEXPECTED EVENT");
+        indicator_mode = IND_ERROR;
     }
 
     /* The event will not be processed after unregister */
