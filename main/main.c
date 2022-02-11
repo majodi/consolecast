@@ -45,7 +45,7 @@ struct async_resp_arg {
 
 // global
 static const char *TAG = "** ccfw **";                  // tag for logging to console
-static int indicator_mode = IND_OFF;                    // current indicator mode
+int indicator_mode = IND_OFF;                           // current indicator mode
 static bool switchSTA = false;                          // should switch to Station mode (set to True will attempt to connect to an Access Point)
 static bool isSTA = false;                              // did we switch to Station mode
 wifi_ap_record_t ap_info[DEFAULT_SCAN_LIST_SIZE];       // to hold the scanned AP's
