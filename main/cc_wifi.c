@@ -7,8 +7,9 @@
    CONDITIONS OF ANY KIND, either express or implied.
  */
 
-#include <string.h>
 #include "cc_wifi.h"
+
+#include <string.h>
 #include "esp_log.h"
 #include "esp_err.h"
 #include "freertos/FreeRTOS.h"
@@ -17,9 +18,9 @@
 #include "esp_event.h"
 #include "esp_wifi.h"
 #include "esp_wifi_default.h"
-
-#include "comm_settings.h"
-#include "defines.h"
+#include "cc_webserver.h"
+#include "cc_indicator.h"
+#include "cc_websocket.h"
 
 
 // default settings
@@ -33,6 +34,8 @@
 #define MAXIMUM_RETRY 3
 
 static const char *TAG = "cc_wifi";
+
+bool isSTA = false;                              // did we switch to Station mode
 
 /* FreeRTOS event group to signal when we are connected*/
 static EventGroupHandle_t s_wifi_event_group;
@@ -82,32 +85,29 @@ static void ap_wifi_event_handler(void* arg, esp_event_base_t event_base,
     }
 }
 
-// ----> later fixed IP: https://www.esp32.com/viewtopic.php?t=13371
-// ----> UI to set AP password? recovery?
-
 esp_err_t cc_startAP() {
-  ESP_LOGI(TAG, "startAP");
-  esp_netif_create_default_wifi_ap();
-  wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-  ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+    ESP_LOGI(TAG, "startAP");
+    esp_netif_create_default_wifi_ap();
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
-  ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
-                                                      ESP_EVENT_ANY_ID,
-                                                      &ap_wifi_event_handler,
-                                                      NULL,
-                                                      NULL));  
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
+                                                        ESP_EVENT_ANY_ID,
+                                                        &ap_wifi_event_handler,
+                                                        NULL,
+                                                        NULL));  
 
-  wifi_config_t wifi_config = {
-      .ap = {
-          .ssid = AP_WIFI_SSID,
-          .ssid_len = strlen(AP_WIFI_SSID),
-          .channel = AP_WIFI_CHNL,
-          .password = AP_WIFI_PASS,
-          .max_connection = AP_WIFI_MAXC,
-          .authmode = WIFI_AUTH_WPA2_PSK,
-          .pairwise_cipher = WIFI_CIPHER_TYPE_CCMP
-      },
-  };
+    wifi_config_t wifi_config = {
+        .ap = {
+            .ssid = AP_WIFI_SSID,
+            .ssid_len = strlen(AP_WIFI_SSID),
+            .channel = AP_WIFI_CHNL,
+            .password = AP_WIFI_PASS,
+            .max_connection = AP_WIFI_MAXC,
+            .authmode = WIFI_AUTH_WPA2_PSK,
+            .pairwise_cipher = WIFI_CIPHER_TYPE_CCMP
+        },
+    };
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));                // APSTA needed for scan
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_config));
@@ -116,30 +116,56 @@ esp_err_t cc_startAP() {
     ESP_LOGI(TAG, "wifi_init_softap finished. SSID:%s password:%s channel:%d",
              AP_WIFI_SSID, AP_WIFI_PASS, AP_WIFI_CHNL);
 
-  return ESP_OK;
+    memset(ap_info, 0, sizeof(ap_info));
+    ESP_ERROR_CHECK(esp_wifi_scan_start(NULL, true));
+    uint16_t list_size = DEFAULT_SCAN_LIST_SIZE;
+    ESP_ERROR_CHECK(esp_wifi_scan_get_ap_records(&list_size, ap_info));
+    ESP_ERROR_CHECK(esp_wifi_scan_get_ap_num(&ap_count));
+    ESP_LOGI(TAG, "Total APs scanned = %u", ap_count);
+    for (int i = 0; (i < DEFAULT_SCAN_LIST_SIZE) && (i < ap_count); i++) {
+        ESP_LOGI(TAG, "SSID \t\t%s\t%d", ap_info[i].ssid, ap_info[i].rssi);
+    }
+    isSTA = false;
+    return ESP_OK;
+}
+
+void switch_to_sta(void* server) {
+    indicator_mode = IND_WORKING;
+    ESP_LOGI(TAG, "----> switch to STA");
+    ESP_ERROR_CHECK(esp_wifi_stop());
+
+    esp_event_handler_instance_unregister(ESP_EVENT_ANY_BASE, ESP_EVENT_ANY_ID, NULL);
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &connect_handler, server, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, &disconnect_handler, server, NULL));
+
+    ESP_ERROR_CHECK(cc_connectToAP(connectToSSID, connectToPass));
+    isSTA = true;
+    ESP_LOGI(TAG, "----> end switch to STA");
+    indicator_mode = IND_OFF;
+    flash(2000);
 }
 
 esp_err_t cc_connectToAP(char *ssid, char *pass) {
-  ESP_LOGI(TAG, "connectToAP SSID = %s, pass = %s", ssid, pass);
-  s_wifi_event_group = xEventGroupCreate();
+    ESP_LOGI(TAG, "connectToAP SSID = %s, pass = %s", ssid, pass);
+    s_wifi_event_group = xEventGroupCreate();
 
-  esp_netif_t *sta_netif = esp_netif_create_default_wifi_sta();
-  assert(sta_netif);
-  wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-  ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+    esp_netif_t *sta_netif = esp_netif_create_default_wifi_sta();
+    assert(sta_netif);
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
-  esp_event_handler_instance_t instance_any_id;
-  ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
-                                                      ESP_EVENT_ANY_ID,
-                                                      &sta_wifi_event_handler,
-                                                      NULL,
-                                                      &instance_any_id));
-  esp_event_handler_instance_t instance_got_ip;
-  ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
-                                                      IP_EVENT_STA_GOT_IP,
-                                                      &sta_wifi_event_handler,
-                                                      NULL,
-                                                      &instance_got_ip));
+    esp_event_handler_instance_t instance_any_id;
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
+                                                        ESP_EVENT_ANY_ID,
+                                                        &sta_wifi_event_handler,
+                                                        NULL,
+                                                        &instance_any_id));
+    esp_event_handler_instance_t instance_got_ip;
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
+                                                        IP_EVENT_STA_GOT_IP,
+                                                        &sta_wifi_event_handler,
+                                                        NULL,
+                                                        &instance_got_ip));
 
     wifi_config_t wifi_config = {
         .sta = {

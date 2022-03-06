@@ -8,13 +8,14 @@
  */
 
 #pragma once
+#include "stdbool.h"
 #include "esp_err.h"
-#include "esp_wifi_types.h"
 
+// AP scan list, code assumes only 1 digit (0-9) --> max setting here for scan list size is 10
+#define DEFAULT_SCAN_LIST_SIZE (10)
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+extern bool isSTA;
+
 
 /**
  * @brief Configure Wi-Fi, start AP, wait for AP started
@@ -26,6 +27,13 @@ extern "C" {
 esp_err_t cc_startAP();
 
 /**
+ * @brief Switch to STA mode
+ *
+ * This helper function switches to station mode
+ */
+void switch_to_sta(void* server);
+
+/**
  * @brief Configure Wi-Fi, connect to an AP, wait for IP address
  *
  * This helper function connects to an AP
@@ -34,6 +42,3 @@ esp_err_t cc_startAP();
  */
 esp_err_t cc_connectToAP(char *ssid, char *pass);
 
-#ifdef __cplusplus
-}
-#endif

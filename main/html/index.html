@@ -382,7 +382,7 @@
             <img width=800px src="cc.png" alt="PCB">
         </div>
         <br><br><br><br>
-        <div class="input-align border-s">
+        <div class="input-align border-s" id="comsettings">
             <label class="label-right" for="baudrate"><b>Baudrate:</b></label>
             <input style="margin-left: 8px;" type="text" id="baudrate" value="9600">
             <label class="label-right" for="db-group"><b>Data Bits:</b></label>
@@ -423,6 +423,10 @@
                 <input type="radio" id="fcsw" name="fc-group" value="2">
                 <label for="fcsw">SW</label>
             </div>
+        </div>
+        <div class="input-align border-s" style="display: none" id="settingsdisabled">
+            <p>Settings disabled (controlled by other session)</p>
+            <button class="button" onclick="enablePortChoice()">Take control</button>
         </div>
         <br><br><br>
         <u><b><p style="display: none; cursor: pointer;" onclick="switchAdvanced()" id="advancedHeading">Advanced </b></u><span id="toggleAdvanced">&#9660;</span></p>
@@ -468,18 +472,21 @@
         <h4>ConsoleCast is trying to connect to the specified network</h4>
         <p>When ConsoleCast is back on-line you can:</p>
         <p>- reload this page to re-connect using the standard ConsoleCast Access Point or</p>
-        <p>- first switch to the specified network and reload this page</p>
+        <p>- first switch to the specified network and then reload this page</p>
     </div>
 </div>
 
 <script>
     let socket;
+    let master = true;                                              // assume master role while not certain yet
+    let masterAcquired = false;
 
     document.addEventListener('DOMContentLoaded', function() {
         console.log("starting WebSocket");
         socket = new WebSocket('wss://cc.local/ws');
         socket.onmessage = function(event) {
             let incomingMessage = event.data;
+            // console.log(event.data);
             if(incomingMessage.startsWith('§±')) {                  // scan list entry
                 let ssid = incomingMessage.substring(2);
                 addSSID(ssid.split(',')[1], ssid.split(',')[2]);
@@ -491,24 +498,12 @@
                 document.getElementById("waiting").style.display = "none";
                 document.getElementById("switchUI").style.display = "inline-block";
                 document.getElementById("advancedHeading").style.display = "inline-block";
-                if (incomingMessage.charAt(2) != 'N') {
-                    if (incomingMessage.charAt(2) === '0') {
-                        document.getElementById("portRJ45").checked = true;
-                        document.getElementById("portRJ45").disabled = true;
-                    }
-                    if (incomingMessage.charAt(2) === '1') {
-                        document.getElementById("portUSB").checked = true;
-                        document.getElementById("portUSB").disabled = true;
-                    }
+                if (incomingMessage.charAt(2) != 'N') {             // port was set already so someone else took master role, I'm not allowed to set port
+                    disablePortChoice(incomingMessage.charAt(2));
                 }
-            } else if(incomingMessage.startsWith('§®')) {           // get comm type choosen by other station
-                if (incomingMessage.charAt(2) === '0') {
-                    document.getElementById("portRJ45").checked = true;
-                    document.getElementById("portRJ45").disabled = true;
-                }
-                if (incomingMessage.charAt(2) === '1') {
-                    document.getElementById("portUSB").checked = true;
-                    document.getElementById("portUSB").disabled = true;
+            } else if(incomingMessage.startsWith('§®')) {           // comm type choosen by someone (could be my action so check if I acquired master role)
+                if(!masterAcquired) {                               // if not acquired master myself, someone else took master role so set my master role to false
+                    disablePortChoice(incomingMessage.charAt(2));
                 }
             } else {
                 term.write(incomingMessage);
@@ -527,6 +522,30 @@
         sockSend(e);
     });
 
+    function enablePortChoice() {
+        master = true;                                  // port was set so someone took master role, I'm not allowed to set port
+        document.getElementById("portRJ45").disabled = false;
+        document.getElementById("portUSB").disabled = false;
+        document.getElementById("comsettings").style.display = "inline-block";
+        document.getElementById("advancedHeading").style.display = "inline-block";
+        document.getElementById("settingsdisabled").style.display = "none";
+    }
+
+    function disablePortChoice(port) {
+        master = false;                                 // port was set so someone took master role, I'm not allowed to set port
+        if (port === '0') {
+            document.getElementById("portRJ45").checked = true;
+        }
+        if (port === '1') {
+            document.getElementById("portUSB").checked = true;
+        }
+        document.getElementById("portRJ45").disabled = true;
+        document.getElementById("portUSB").disabled = true;
+        document.getElementById("comsettings").style.display = "none";
+        document.getElementById("advancedHeading").style.display = "none";
+        document.getElementById("settingsdisabled").style.display = "inline-block";
+    }
+
     function sockSend(message) {
         if (socket.readyState !== WebSocket.CLOSED && socket.readyState !== WebSocket.CLOSING) {
             socket.send(message);
@@ -536,12 +555,14 @@
     }
 
     function connectWithAP() {
-        sockSend('§¨' + document.getElementById("SSID").value + ' , ' + document.getElementById("password").value); // switch to STA mode
+        sockSend('§¡' + document.getElementById("SSID").value + ' , ' + document.getElementById("password").value); // switch to STA mode
         document.getElementById("mModal").style.display = "block";
-        // setTimeout(function(){ location.reload(); }, 5000);
+        // setTimeout(function(){ location.reload(); }, 5000); // auto reload disabled
     }
 
     function sendCommSettings() {
+        if(!master) return;                                         // COM settings done by master
+        masterAcquired = true;                                      // you're now master (you were here first), ConsoleCast will send §® token to all
         let commType = document.getElementById("portRJ45").checked ? 0 : 1; // 0 = uart
         let db = "8";
         let radios = document.getElementsByName('db-group');

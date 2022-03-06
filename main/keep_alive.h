@@ -1,4 +1,4 @@
-/* Keep Alive engine for wss server example
+/* Keep Alive engine for wss server example (code by Espressif)
 
    This example code is in the Public Domain (or CC0 licensed, at your option.)
 
@@ -8,9 +8,14 @@
 */
 #pragma once
 
+#include <stddef.h>
+#include <stdbool.h>
+#include "esp_err.h"
+
+
 #define KEEP_ALIVE_CONFIG_DEFAULT() \
     { \
-    .max_clients = 10,                      \
+    .max_clients = max_clients,             \
     .task_stack_size = 2048,                \
     .task_prio = tskIDLE_PRIORITY+1,        \
     .keep_alive_period_ms = 5000,           \

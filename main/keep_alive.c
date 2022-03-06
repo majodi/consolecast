@@ -1,4 +1,4 @@
-/* Keep Alive engine for wss server example
+/* Keep Alive engine for wss server example (code by Espressif)
 
    This example code is in the Public Domain (or CC0 licensed, at your option.)
 
@@ -7,13 +7,15 @@
    CONDITIONS OF ANY KIND, either express or implied.
 */
 
+#include "keep_alive.h"
+
 #include <esp_log.h>
 #include <esp_system.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
-#include "keep_alive.h"
 #include "esp_timer.h"
+
 
 typedef enum {
     NO_CLIENT = 0,

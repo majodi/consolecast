@@ -7,13 +7,14 @@
    CONDITIONS OF ANY KIND, either express or implied.
  */
 
-#include "driver/gpio.h"
-#include "esp_log.h"
-#include "esp_https_server.h"
-#include "keep_alive.h"
 #include "cc_webserver.h"
 
-#include "defines.h"
+#include "esp_log.h"
+#include "keep_alive.h"
+#include "cc_http.h"
+#include "cc_websocket.h"
+#include "cc_indicator.h"
+
 
 #if !CONFIG_HTTPD_WS_SUPPORT
 #error This code cannot be used unless HTTPD_WS_SUPPORT is enabled in esp-http-server component configuration
@@ -21,10 +22,34 @@
 
 static const char *TAG = "cc_webserver";
 
-struct async_resp_arg {
-    httpd_handle_t hd;
-    int fd;
+const size_t max_clients = 13;
+
+const httpd_uri_t root = {
+    .uri       = "/",
+    .method    = HTTP_GET,
+    .handler   = root_get_handler
 };
+
+const httpd_uri_t favicon = {
+    .uri       = "/favicon.ico",
+    .method    = HTTP_GET,
+    .handler   = favicon_get_handler
+};
+
+const httpd_uri_t ccpng = {
+    .uri       = "/cc.png",
+    .method    = HTTP_GET,
+    .handler   = ccpng_get_handler
+};
+
+const httpd_uri_t xterm = {
+    .uri       = "/xterm.js",
+    .method    = HTTP_GET,
+    .handler   = xterm_get_handler
+};
+
+httpd_handle_t globserver = NULL;
+
 
 bool client_not_alive_cb(wss_keep_alive_t h, int fd)
 {
@@ -44,7 +69,6 @@ static void send_ping(void *arg)
     ws_pkt.payload = NULL;
     ws_pkt.len = 0;
     ws_pkt.type = HTTPD_WS_TYPE_PING;
-
     httpd_ws_send_frame_async(hd, fd, &ws_pkt);
     free(resp_arg);
 }
@@ -64,21 +88,43 @@ bool check_client_alive_cb(wss_keep_alive_t h, int fd)
 
 esp_err_t wss_open_fd(httpd_handle_t hd, int sockfd)
 {
-    gpio_set_level(IO_TXD, 1);
-    gpio_set_level(IO_RXD, 1);
-    vTaskDelay(300 / portTICK_PERIOD_MS);
-    gpio_set_level(IO_TXD, 0);
-    gpio_set_level(IO_RXD, 0);
-    ESP_LOGI(TAG, "New client connected %d", sockfd);
+    flash(300);
+    ESP_LOGD(TAG, "************** New client connected %d", sockfd);
     wss_keep_alive_t h = httpd_get_global_user_ctx(hd);
     return wss_keep_alive_add_client(h, sockfd);
 }
 
 void wss_close_fd(httpd_handle_t hd, int sockfd)
 {
-    ESP_LOGI(TAG, "Client disconnected %d", sockfd);
+    ESP_LOGD(TAG, "************** Client disconnected %d", sockfd);
     wss_keep_alive_t h = httpd_get_global_user_ctx(hd);
     wss_keep_alive_remove_client(h, sockfd);
+    // close(sockfd); // done by keep_alive
+}
+
+void disconnect_handler(void* arg, esp_event_base_t event_base,
+                               int32_t event_id, void* event_data)
+{
+    httpd_handle_t* server = (httpd_handle_t*) arg;
+    if (*server) {
+        stop_webserver(*server);
+        *server = NULL;
+    }
+}
+
+void connect_handler(void* arg, esp_event_base_t event_base,
+                            int32_t event_id, void* event_data)
+{
+    httpd_handle_t* server = (httpd_handle_t*) arg;
+    if (*server == NULL) {
+        *server = start_webserver();
+        globserver = *server;
+        httpd_register_uri_handler(*server, &root);
+        httpd_register_uri_handler(*server, &favicon);
+        httpd_register_uri_handler(*server, &ccpng);
+        httpd_register_uri_handler(*server, &xterm);
+        httpd_register_uri_handler(*server, &ws);
+    }
 }
 
 httpd_handle_t start_webserver(void)
@@ -88,6 +134,9 @@ httpd_handle_t start_webserver(void)
     keep_alive_config.max_clients = max_clients;
     keep_alive_config.client_not_alive_cb = client_not_alive_cb;
     keep_alive_config.check_client_alive_cb = check_client_alive_cb;
+
+    keep_alive_config.task_prio = 10; // same as uart and cdc
+
     wss_keep_alive_t keep_alive = wss_keep_alive_start(&keep_alive_config);
 
     httpd_handle_t server = NULL;
@@ -98,12 +147,13 @@ httpd_handle_t start_webserver(void)
     conf.httpd.max_open_sockets = max_clients;
     conf.httpd.global_user_ctx = keep_alive;
     conf.httpd.open_fn = wss_open_fd;
-    conf.httpd.close_fn = wss_close_fd;    
+    conf.httpd.close_fn = wss_close_fd;
+    conf.httpd.task_priority = USB_HOST_PRIORITY + 1;
 
-    extern const unsigned char cacert_pem_start[] asm("_binary_cacert_pem_start");
-    extern const unsigned char cacert_pem_end[]   asm("_binary_cacert_pem_end");
-    conf.cacert_pem = cacert_pem_start;
-    conf.cacert_len = cacert_pem_end - cacert_pem_start;
+    extern const unsigned char servercert_start[] asm("_binary_servercert_pem_start");
+    extern const unsigned char servercert_end[]   asm("_binary_servercert_pem_end");
+    conf.servercert = servercert_start;
+    conf.servercert_len = servercert_end - servercert_start;
 
     extern const unsigned char prvtkey_pem_start[] asm("_binary_prvtkey_pem_start");
     extern const unsigned char prvtkey_pem_end[]   asm("_binary_prvtkey_pem_end");

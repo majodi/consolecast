@@ -9,12 +9,24 @@
 
 #pragma once
 #include "esp_https_server.h"
+#include "esp_wifi_types.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 
-static const size_t max_clients = 13;
+struct async_resp_arg {
+    httpd_handle_t hd;
+    int fd;
+    uint8_t *payload;
+    size_t len;
+};
+
+extern const size_t max_clients;
+extern const httpd_uri_t root;
+extern const httpd_uri_t favicon;
+extern const httpd_uri_t ccpng;
+extern const httpd_uri_t xterm;
+
+extern httpd_handle_t globserver;
+
 
 /**
  * @brief Start webserver
@@ -33,6 +45,20 @@ httpd_handle_t start_webserver(void);
  * @param server server handle
  */
 void stop_webserver(httpd_handle_t server);
+
+/**
+ * @brief Connect handler
+ *
+ */
+void connect_handler(void* arg, esp_event_base_t event_base,
+                            int32_t event_id, void* event_data);
+
+/**
+ * @brief Disconnect handler
+ *
+ */
+void disconnect_handler(void* arg, esp_event_base_t event_base,
+                               int32_t event_id, void* event_data);
 
 /**
  * @brief wss open connection handler
@@ -57,7 +83,3 @@ esp_err_t wss_open_fd(httpd_handle_t hd, int sockfd);
  * @return httpd_handle_t on successful start of webserver
  */
 void wss_close_fd(httpd_handle_t hd, int sockfd);
-
-#ifdef __cplusplus
-}
-#endif
