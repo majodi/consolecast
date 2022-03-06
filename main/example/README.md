@@ -11,13 +11,13 @@ This is what you need to do:
 
 You can use a normal (short) RJ45 patch cable and an adapter for the Owon DB9 port. The DB9 on the Owon is a male connector so you will need a female plug (or gender changer). Having the jumpers on ConsoleCast set in "Patch" config (the default) you need the following line connections:
 
-DB9 side                RJ45 side
-
-2                       3
-3                       6
-5                       4 and/or 5
-(7)                     (8) optional
-(8)                     (1) optional
+| DB9 | RJ45 | Remark |
+| --- | --- | --- |
+| 2 | 3 |
+| 3 | 6 |
+| 5 | 4 and/or 5 |
+| (7) | (3) | optional
+| (8) | (3) | optional
 
 For more info see [consolecast.nickstick.nl](https://consolecast.nickstick.nl)
 
