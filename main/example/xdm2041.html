@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ConsoleCast</title>
+    <style>
+        .center-header {
+            /* margin: 25vh; */
+            text-align: center;
+        }
+        .center {
+            padding: 70px 0;
+            margin: 25vh;
+            border: 3px solid green;
+            text-align: center;
+        }
+        .bigfont {
+            font-size: 100px;
+        }
+    </style>
+</head>
+
+<body>
+<h1 class="center-header">Simple SCPI example for XDM2041 with ConsoleCast by NickStick (see consolecast.nickstick.nl for details)</h1>
+<div class="center">
+    <h1 class="bigfont" id="display"></h1>
+</div>
+
+<script>
+
+    function sockSend(message) {
+        if (socket.readyState !== WebSocket.CLOSED && socket.readyState !== WebSocket.CLOSING) {
+            socket.send(message);
+        } else {
+            alert('No Connection to ConsoleCast, try to reload page...');
+        }
+    }
+
+    function interpret(message) {
+        if(message.startsWith('§!')) {
+            display.textContent = 'ConsoleCast UP'
+            sockSend('§©9600,8,0,1,0,0');                       // send comm settings
+        } else if(message.startsWith('§®')) {
+            display.textContent = 'Port set';
+            setInterval(function () {                           // request measurement every second
+                sockSend('MEAS1?\r');
+            }, 1000);
+        } else {                                                // not a token --> measurement response
+            display.textContent = Number(message.substr(0,13)); // convert scientific notation and display 
+        }
+    }
+
+    let display = document.getElementById("display");
+    display.textContent = 'No Connection'
+    let socket;
+    console.log("starting WebSocket");
+    socket = new WebSocket('wss://cc.local/ws');
+    socket.onmessage = function(event) {
+        interpret(event.data);
+    };
+    socket.onclose = event => {
+        display.textContent = 'Socket Disconnected'
+    };
+    socket.onopen = event => {
+        display.textContent = 'Socket Connected'
+    };    
+
+
+</script>
+
+</body>
+</html>
