@@ -26,4 +26,4 @@ For more info see [consolecast.nickstick.nl](https://consolecast.nickstick.nl)
 - In your browser open this example html file as a local file like this: "file:///_your_local_directory_/xdm2041.html"
 - The JS code will now connect to and communicate with ConsoleCast and show the main display reading of the Owon
 
-For more SCPI commands for the you can find the programming manual for the complete command-set [here](https://www.technica-m.ru/upload/support_ext/owon_xdm2041_digital_multimeter_programming_manual.pdf). You can use the on-board ConsoleCast terminal for testing out these commands.
+For more SCPI commands for the XDM2041, you can find the programming manual for the complete command-set [here](https://www.technica-m.ru/upload/support_ext/owon_xdm2041_digital_multimeter_programming_manual.pdf). You can use the on-board ConsoleCast terminal for testing out these commands.
